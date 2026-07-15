@@ -1,0 +1,15 @@
+html {
+  min-width: 320px;
+  background: #eef5ee;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
