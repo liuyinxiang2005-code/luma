@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
 
 const HABITS_STORAGE_KEY = 'luma-habits-v2'
@@ -142,6 +142,12 @@ function App() {
   const [newHabitIcon, setNewHabitIcon] = useState('✨')
   const [editHabitName, setEditHabitName] = useState('')
   const [editHabitIcon, setEditHabitIcon] = useState('')
+  const [showCompletionCelebration, setShowCompletionCelebration] =
+    useState(false)
+  const [celebrationKey, setCelebrationKey] = useState(0)
+  const [closingModal, setClosingModal] = useState(null)
+  const celebrationTimeoutRef = useRef(null)
+  const modalCloseTimeoutRef = useRef(null)
 
   const habits = useMemo(
     () =>
@@ -167,6 +173,13 @@ function App() {
     )
   }, [records])
 
+  useEffect(() => {
+    return () => {
+      clearTimeout(celebrationTimeoutRef.current)
+      clearTimeout(modalCloseTimeoutRef.current)
+    }
+  }, [])
+
   const completedCount = useMemo(
     () => habits.filter((habit) => habit.completed).length,
     [habits],
@@ -176,6 +189,53 @@ function App() {
     habits.length === 0
       ? 0
       : Math.round((completedCount / habits.length) * 100)
+
+  const [animatedProgress, setAnimatedProgress] = useState(progress)
+  const animatedProgressRef = useRef(progress)
+
+  useEffect(() => {
+    const prefersReducedMotion = window.matchMedia(
+      '(prefers-reduced-motion: reduce)',
+    ).matches
+
+    if (prefersReducedMotion) {
+      animatedProgressRef.current = progress
+      setAnimatedProgress(progress)
+      return undefined
+    }
+
+    const startProgress = animatedProgressRef.current
+
+    if (startProgress === progress) {
+      return undefined
+    }
+
+    const duration = 700
+    const progressDifference = progress - startProgress
+    let animationFrameId
+    let startTime
+
+    function animate(timestamp) {
+      startTime ??= timestamp
+
+      const elapsed = timestamp - startTime
+      const timeProgress = Math.min(elapsed / duration, 1)
+      const easedProgress = 1 - Math.pow(1 - timeProgress, 3)
+      const nextProgress =
+        startProgress + progressDifference * easedProgress
+
+      animatedProgressRef.current = nextProgress
+      setAnimatedProgress(nextProgress)
+
+      if (timeProgress < 1) {
+        animationFrameId = requestAnimationFrame(animate)
+      }
+    }
+
+    animationFrameId = requestAnimationFrame(animate)
+
+    return () => cancelAnimationFrame(animationFrameId)
+  }, [progress])
 
   const historySummary = useMemo(() => {
     const recordedDates = Object.keys(records)
@@ -249,6 +309,8 @@ function App() {
     ) ?? historySummary.heatmapDays.at(-1)
 
   function toggleHabit(id) {
+    const wasAllComplete =
+      habits.length > 0 && habits.every((habit) => habit.completed)
     const updatedHabits = habits.map((habit) =>
       habit.id === id
         ? {
@@ -257,6 +319,24 @@ function App() {
           }
         : habit,
     )
+    const isNowAllComplete =
+      updatedHabits.length > 0 &&
+      updatedHabits.every((habit) => habit.completed)
+
+    if (!wasAllComplete && isNowAllComplete) {
+      clearTimeout(celebrationTimeoutRef.current)
+      setCelebrationKey((currentKey) => currentKey + 1)
+      setShowCompletionCelebration(true)
+
+      const prefersReducedMotion = window.matchMedia(
+        '(prefers-reduced-motion: reduce)',
+      ).matches
+
+      celebrationTimeoutRef.current = setTimeout(
+        () => setShowCompletionCelebration(false),
+        prefersReducedMotion ? 750 : 1450,
+      )
+    }
 
     setRecords((currentRecords) => ({
       ...currentRecords,
@@ -273,8 +353,38 @@ function App() {
     setIsAddOpen(true)
   }
 
+  function requestModalClose(modalType) {
+    if (modalCloseTimeoutRef.current !== null) {
+      return
+    }
+
+    setClosingModal(modalType)
+
+    const prefersReducedMotion = window.matchMedia(
+      '(prefers-reduced-motion: reduce)',
+    ).matches
+
+    modalCloseTimeoutRef.current = setTimeout(
+      () => {
+        if (modalType === 'add') {
+          setIsAddOpen(false)
+        } else if (modalType === 'manage') {
+          setIsManageOpen(false)
+        } else if (modalType === 'history') {
+          setIsHistoryOpen(false)
+        } else if (modalType === 'edit') {
+          setEditingHabitId(null)
+        }
+
+        modalCloseTimeoutRef.current = null
+        setClosingModal(null)
+      },
+      prefersReducedMotion ? 140 : 360,
+    )
+  }
+
   function closeAddHabit() {
-    setIsAddOpen(false)
+    requestModalClose('add')
   }
 
   function openEditHabit(habit) {
@@ -284,7 +394,7 @@ function App() {
   }
 
   function closeEditHabit() {
-    setEditingHabitId(null)
+    requestModalClose('edit')
   }
 
   function editHabit(event) {
@@ -372,6 +482,24 @@ function App() {
       <div className="ambient ambient-one" />
       <div className="ambient ambient-two" />
 
+      {showCompletionCelebration && (
+        <div
+          key={celebrationKey}
+          className="completion-celebration"
+          aria-hidden="true"
+        >
+          <div className="completion-badge">
+            <svg
+              className="completion-check"
+              viewBox="0 0 112 112"
+              aria-hidden="true"
+            >
+              <path d="M 25 58 L 47 78 L 88 35" />
+            </svg>
+          </div>
+        </div>
+      )}
+
       <section
         className="dashboard"
         aria-label="Luma habit dashboard"
@@ -405,11 +533,11 @@ function App() {
           <div
             className="progress-ring"
             style={{
-              '--progress': `${progress * 3.6}deg`,
+              '--progress': `${animatedProgress * 3.6}deg`,
             }}
           >
             <div className="progress-ring-inner">
-              <strong>{progress}%</strong>
+              <strong>{Math.round(animatedProgress)}%</strong>
               <span>done</span>
             </div>
           </div>
@@ -494,12 +622,16 @@ function App() {
 
       {isAddOpen && (
         <div
-          className="modal-backdrop"
+          className={`modal-backdrop ${
+            closingModal === 'add' ? 'modal-closing' : ''
+          }`}
           role="presentation"
           onMouseDown={closeAddHabit}
         >
           <section
-            className="add-modal"
+            className={`add-modal ${
+              closingModal === 'add' ? 'modal-closing' : ''
+            }`}
             role="dialog"
             aria-modal="true"
             aria-labelledby="add-habit-title"
@@ -569,12 +701,16 @@ function App() {
 
       {isManageOpen && (
         <div
-          className="modal-backdrop"
+          className={`modal-backdrop ${
+            closingModal === 'manage' ? 'modal-closing' : ''
+          }`}
           role="presentation"
-          onMouseDown={() => setIsManageOpen(false)}
+          onMouseDown={() => requestModalClose('manage')}
         >
           <section
-            className="add-modal manage-modal"
+            className={`add-modal manage-modal ${
+              closingModal === 'manage' ? 'modal-closing' : ''
+            }`}
             role="dialog"
             aria-modal="true"
             aria-labelledby="manage-habits-title"
@@ -590,15 +726,21 @@ function App() {
                 className="close-button"
                 type="button"
                 aria-label="Close"
-                onClick={() => setIsManageOpen(false)}
+                onClick={() => requestModalClose('manage')}
               >
                 ×
               </button>
             </div>
 
-            <div className="manage-habit-list">
-              {habitDefinitions.map((habit) => (
-                <div className="manage-habit-item" key={habit.id}>
+            <div className="manage-habit-list manage-list-animate">
+              {habitDefinitions.map((habit, index) => (
+                <div
+                  className="manage-habit-item"
+                  key={habit.id}
+                  style={{
+                    '--habit-delay': `${Math.min(index * 45, 320)}ms`,
+                  }}
+                >
                   <span className="habit-icon" aria-hidden="true">
                     {habit.icon}
                   </span>
@@ -634,12 +776,16 @@ function App() {
 
       {isHistoryOpen && (
         <div
-          className="modal-backdrop"
+          className={`modal-backdrop ${
+            closingModal === 'history' ? 'modal-closing' : ''
+          }`}
           role="presentation"
-          onMouseDown={() => setIsHistoryOpen(false)}
+          onMouseDown={() => requestModalClose('history')}
         >
           <section
-            className="add-modal history-modal"
+            className={`add-modal history-modal ${
+              closingModal === 'history' ? 'modal-closing' : ''
+            }`}
             role="dialog"
             aria-modal="true"
             aria-labelledby="history-title"
@@ -655,24 +801,33 @@ function App() {
                 className="close-button"
                 type="button"
                 aria-label="Close"
-                onClick={() => setIsHistoryOpen(false)}
+                onClick={() => requestModalClose('history')}
               >
                 ×
               </button>
             </div>
 
             <div className="history-stats">
-              <div className="history-stat-card">
+              <div
+                className="history-stat-card"
+                style={{ '--stagger-delay': '0ms' }}
+              >
                 <span>Current streak</span>
                 <strong>{historySummary.currentStreak}</strong>
                 <small>days</small>
               </div>
-              <div className="history-stat-card">
+              <div
+                className="history-stat-card"
+                style={{ '--stagger-delay': '50ms' }}
+              >
                 <span>Best streak</span>
                 <strong>{historySummary.bestStreak}</strong>
                 <small>days</small>
               </div>
-              <div className="history-stat-card">
+              <div
+                className="history-stat-card"
+                style={{ '--stagger-delay': '100ms' }}
+              >
                 <span>Completion rate</span>
                 <strong>{historySummary.completionRate}%</strong>
                 <small>average</small>
@@ -694,7 +849,7 @@ function App() {
               </div>
 
               <div className="heatmap-grid">
-                {historySummary.heatmapDays.map((day) => {
+                {historySummary.heatmapDays.map((day, index) => {
                   const level =
                     day.percentage === 100
                       ? 3
@@ -712,6 +867,7 @@ function App() {
                       } ${
                         day.dateKey === selectedDay.dateKey ? 'selected' : ''
                       }`}
+                      style={{ '--stagger-delay': `${index * 12}ms` }}
                       type="button"
                       aria-label={`${formatDisplayDate(day.date)}: ${day.completed} of ${day.total}, ${day.percentage}%`}
                       onMouseEnter={() => setSelectedHistoryDate(day.dateKey)}
@@ -738,12 +894,16 @@ function App() {
 
       {editingHabitId && (
         <div
-          className="modal-backdrop edit-modal-backdrop"
+          className={`modal-backdrop edit-modal-backdrop ${
+            closingModal === 'edit' ? 'modal-closing' : ''
+          }`}
           role="presentation"
           onMouseDown={closeEditHabit}
         >
           <section
-            className="add-modal edit-modal"
+            className={`add-modal edit-modal ${
+              closingModal === 'edit' ? 'modal-closing' : ''
+            }`}
             role="dialog"
             aria-modal="true"
             aria-labelledby="edit-habit-title"

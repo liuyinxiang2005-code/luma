@@ -49,6 +49,102 @@ button {
   background: rgba(178, 228, 255, 0.62);
 }
 
+.completion-celebration {
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  animation: completion-flight 1400ms linear both;
+}
+
+.completion-badge {
+  display: grid;
+  width: 124px;
+  height: 124px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.88);
+  border-radius: 50%;
+  background: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.78),
+    rgba(218, 250, 213, 0.68)
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    0 22px 60px rgba(46, 91, 51, 0.2),
+    0 0 34px rgba(123, 207, 118, 0.2);
+  backdrop-filter: blur(22px) saturate(145%);
+  -webkit-backdrop-filter: blur(22px) saturate(145%);
+  animation: completion-breathe 450ms cubic-bezier(0.16, 1, 0.3, 1) 500ms;
+}
+
+.completion-check {
+  width: 96px;
+  height: 96px;
+  overflow: visible;
+  fill: none;
+  stroke: #78c974;
+  stroke-width: 9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.completion-check path {
+  stroke-dasharray: 90;
+  stroke-dashoffset: 90;
+  animation: completion-check-draw 350ms cubic-bezier(0.16, 1, 0.3, 1) 500ms both;
+}
+
+@keyframes completion-flight {
+  0% {
+    opacity: 0;
+    transform: translateY(52vh) scale(0.72);
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  35.7% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  67.8% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(-56px) scale(0.96);
+  }
+}
+
+@keyframes completion-check-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes completion-breathe {
+  50% {
+    transform: scale(1.025);
+  }
+}
+
+@keyframes completion-fade {
+  0%,
+  100% {
+    opacity: 0;
+  }
+
+  21%,
+  78% {
+    opacity: 1;
+  }
+}
+
 .dashboard {
   position: relative;
   z-index: 1;
@@ -205,10 +301,17 @@ h2 {
   border: 1px solid rgba(255, 255, 255, 0.55);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.28);
+  transition:
+    transform 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    background 180ms ease;
 }
 
 .section-actions .text-button:hover {
   background: rgba(255, 255, 255, 0.58);
+}
+
+.section-actions .text-button:active {
+  transform: scale(0.94);
 }
 
 .habit-list {
@@ -289,6 +392,11 @@ h2 {
   place-items: center;
   border-radius: 22px;
   cursor: pointer;
+  transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.add-button:active {
+  transform: scale(0.94);
 }
 
 .add-button span {
@@ -328,6 +436,16 @@ h2 {
     right: 22px;
     bottom: 22px;
   }
+
+  .completion-badge {
+    width: 104px;
+    height: 104px;
+  }
+
+  .completion-check {
+    width: 82px;
+    height: 82px;
+  }
 }
 .modal-backdrop {
   position: fixed;
@@ -341,6 +459,10 @@ h2 {
   -webkit-backdrop-filter: blur(14px);
 }
 
+.modal-backdrop:not(.edit-modal-backdrop) {
+  animation: modal-backdrop-enter 300ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 .add-modal {
   width: min(100%, 460px);
   padding: 26px;
@@ -352,6 +474,117 @@ h2 {
     inset 0 1px 0 rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(30px) saturate(160%);
   -webkit-backdrop-filter: blur(30px) saturate(160%);
+}
+
+.modal-backdrop:not(.edit-modal-backdrop) > .add-modal {
+  animation: modal-surface-enter 440ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform-origin: center center;
+}
+
+.modal-backdrop:not(.edit-modal-backdrop) > .add-modal > * {
+  animation: modal-content-enter 400ms cubic-bezier(0.16, 1, 0.3, 1) 80ms both;
+}
+
+@keyframes modal-backdrop-enter {
+  from {
+    opacity: 0;
+    backdrop-filter: blur(0);
+    -webkit-backdrop-filter: blur(0);
+  }
+
+  to {
+    opacity: 1;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+  }
+}
+
+@keyframes modal-surface-enter {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.965);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes modal-content-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.modal-backdrop.modal-closing {
+  animation: modal-backdrop-exit 320ms cubic-bezier(0.4, 0, 0.2, 1) both;
+  will-change: opacity, backdrop-filter;
+}
+
+.modal-backdrop.modal-closing > .add-modal.modal-closing {
+  animation: modal-surface-exit 340ms cubic-bezier(0.4, 0, 0.2, 1) both;
+  transform-origin: center center;
+  will-change: opacity, transform;
+}
+
+.modal-backdrop.modal-closing > .add-modal.modal-closing > * {
+  animation: modal-content-exit 200ms cubic-bezier(0.4, 0, 0.2, 1) both;
+  will-change: opacity, transform;
+}
+
+@keyframes modal-backdrop-exit {
+  from {
+    opacity: 1;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+  }
+
+  to {
+    opacity: 0;
+    backdrop-filter: blur(0);
+    -webkit-backdrop-filter: blur(0);
+  }
+}
+
+@keyframes modal-surface-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotateX(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(-18px) scale(0.965) rotateX(1.5deg);
+  }
+}
+
+@keyframes modal-content-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes modal-close-fade {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
 }
 
 .manage-modal {
@@ -375,6 +608,31 @@ h2 {
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.46);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.84);
+}
+
+.manage-list-animate > .manage-habit-item {
+  animation: manage-habit-enter 620ms cubic-bezier(0.16, 1, 0.3, 1)
+    calc(100ms + var(--habit-delay)) backwards;
+}
+
+@keyframes manage-habit-enter {
+  0% {
+    opacity: 0;
+    filter: blur(3px);
+    transform: translateY(85px) scale(0.94);
+  }
+
+  86% {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(-2px) scale(1.006);
+  }
+
+  100% {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0) scale(1);
+  }
 }
 
 .manage-habit-item strong {
@@ -454,6 +712,8 @@ h2 {
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.44);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.88);
+  animation: history-stat-enter 600ms cubic-bezier(0.16, 1, 0.3, 1)
+    calc(100ms + var(--stagger-delay)) backwards;
 }
 
 .history-stat-card span,
@@ -518,6 +778,48 @@ h2 {
   font-weight: 750;
   cursor: pointer;
   transition: transform 140ms ease, box-shadow 140ms ease;
+  animation: history-day-enter 690ms cubic-bezier(0.16, 1, 0.3, 1)
+    calc(140ms + var(--stagger-delay)) backwards;
+}
+
+@keyframes history-stat-enter {
+  0% {
+    opacity: 0;
+    filter: blur(3px);
+    transform: translateY(-80px) scale(0.92);
+  }
+
+  84% {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(3px) scale(1.01);
+  }
+
+  100% {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes history-day-enter {
+  0% {
+    opacity: 0;
+    filter: blur(3px);
+    transform: translateY(105px) scale(0.9);
+  }
+
+  86% {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(-2px) scale(1.008);
+  }
+
+  100% {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0) scale(1);
+  }
 }
 
 .heat-level-0 { background: rgba(119, 137, 122, 0.12); }
@@ -649,6 +951,14 @@ h2 {
   font-size: 1.55rem;
   line-height: 1;
   cursor: pointer;
+  transition:
+    transform 100ms ease,
+    opacity 100ms ease;
+}
+
+.close-button:active {
+  opacity: 0.72;
+  transform: scale(0.88);
 }
 
 .habit-form {
@@ -715,4 +1025,46 @@ h2 {
 .save-habit-button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .completion-celebration {
+    animation: completion-fade 700ms ease both;
+  }
+
+  .completion-badge {
+    animation: none;
+  }
+
+  .completion-check path {
+    animation: completion-check-draw 150ms ease 100ms both;
+  }
+
+  .modal-backdrop:not(.edit-modal-backdrop),
+  .modal-backdrop:not(.edit-modal-backdrop) > .add-modal,
+  .modal-backdrop:not(.edit-modal-backdrop) > .add-modal > *,
+  .manage-list-animate > .manage-habit-item,
+  .history-stat-card,
+  .history-modal .heatmap-day {
+    animation: none;
+  }
+
+  .modal-backdrop.modal-closing {
+    animation: modal-close-fade 120ms ease both;
+  }
+
+  .modal-backdrop.modal-closing > .add-modal.modal-closing,
+  .modal-backdrop.modal-closing > .add-modal.modal-closing > * {
+    animation: none;
+  }
+
+  .section-actions .text-button,
+  .add-button {
+    transition: none;
+  }
+
+  .section-actions .text-button:active,
+  .add-button:active {
+    transform: none;
+  }
 }
