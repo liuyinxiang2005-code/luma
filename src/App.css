@@ -19,10 +19,50 @@ button {
   min-height: 100vh;
   overflow: hidden;
   padding: 32px 20px;
+  background: #eef5ee;
+}
+
+.app-background {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  pointer-events: none;
+}
+
+.app-background.original,
+.background-thumbnail.original {
   background:
     radial-gradient(circle at 8% 10%, rgba(216, 255, 186, 0.9), transparent 34%),
     radial-gradient(circle at 92% 14%, rgba(192, 236, 255, 0.8), transparent 30%),
     linear-gradient(145deg, #f8fbf6 0%, #edf5ef 50%, #e9f2f4 100%);
+}
+
+.app-background.image::after {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.025);
+  content: '';
+}
+
+.app-background-current {
+  animation: background-fade-in 500ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.app-background-previous {
+  animation: background-fade-out 500ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes background-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes background-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
 }
 
 .ambient {
@@ -152,14 +192,19 @@ button {
   min-height: calc(100vh - 64px);
   margin: 0 auto;
   padding: 30px;
-  border: 1px solid rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.42);
   border-radius: 36px;
-  background: rgba(255, 255, 255, 0.48);
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.18),
+    rgba(255, 255, 255, 0.07)
+  );
   box-shadow:
-    0 28px 80px rgba(57, 78, 61, 0.16),
-    inset 0 1px 0 rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(28px) saturate(150%);
-  -webkit-backdrop-filter: blur(28px) saturate(150%);
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.08),
+    0 18px 42px rgba(40, 70, 65, 0.08);
+  backdrop-filter: blur(8px) saturate(118%);
+  -webkit-backdrop-filter: blur(8px) saturate(118%);
 }
 
 .topbar,
@@ -204,22 +249,54 @@ h2 {
   letter-spacing: -0.04em;
 }
 
-.profile-button,
-.add-button {
-  border: 1px solid rgba(255, 255, 255, 0.78);
-  color: #213024;
-  background: rgba(255, 255, 255, 0.58);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 10px 24px rgba(49, 68, 52, 0.12);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+.tool-buttons {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 11px;
 }
 
-.profile-button {
-  width: 48px;
-  height: 48px;
-  border-radius: 18px;
-  font-weight: 800;
+.tool-button {
+  display: grid;
+  width: 54px;
+  height: 54px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 17px;
+  color: #213024;
+  background: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.56),
+    rgba(255, 255, 255, 0.28)
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.12),
+    0 10px 24px rgba(48, 74, 70, 0.1);
   cursor: pointer;
+  backdrop-filter: blur(12px) saturate(125%);
+  -webkit-backdrop-filter: blur(12px) saturate(125%);
+  transition:
+    transform 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    background 260ms ease;
+}
+
+.tool-icon {
+  width: 24px;
+  height: 24px;
+}
+
+.tool-button:hover {
+  transform: translateY(-2px) scale(1.03);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.76),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.14),
+    0 14px 28px rgba(48, 74, 70, 0.14);
+}
+
+.tool-button:active {
+  transform: scale(0.94);
 }
 
 .progress-card {
@@ -382,29 +459,6 @@ h2 {
   background: #78c974;
 }
 
-.add-button {
-  position: absolute;
-  right: 30px;
-  bottom: 30px;
-  display: grid;
-  width: 60px;
-  height: 60px;
-  place-items: center;
-  border-radius: 22px;
-  cursor: pointer;
-  transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.add-button:active {
-  transform: scale(0.94);
-}
-
-.add-button span {
-  transform: translateY(-2px);
-  font-size: 2rem;
-  font-weight: 300;
-}
-
 @media (max-width: 640px) {
   .app-shell {
     padding: 0;
@@ -412,9 +466,24 @@ h2 {
 
   .dashboard {
     min-height: 100vh;
-    padding: 24px 18px 100px;
+    padding: 24px 18px;
     border: 0;
     border-radius: 0;
+  }
+
+  .tool-buttons {
+    gap: 9px;
+  }
+
+  .tool-button {
+    width: 48px;
+    height: 48px;
+    border-radius: 15px;
+  }
+
+  .tool-icon {
+    width: 22px;
+    height: 22px;
   }
 
   .progress-card {
@@ -429,12 +498,6 @@ h2 {
   .progress-ring-inner {
     width: 72px;
     height: 72px;
-  }
-
-  .add-button {
-    position: fixed;
-    right: 22px;
-    bottom: 22px;
   }
 
   .completion-badge {
@@ -697,6 +760,108 @@ h2 {
   overflow-y: auto;
 }
 
+.appearance-modal {
+  width: min(100%, 650px);
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+}
+
+.background-picker-heading {
+  margin-top: 28px;
+}
+
+.background-picker-heading h3 {
+  margin: 0;
+  font-size: 1.08rem;
+  letter-spacing: -0.02em;
+}
+
+.background-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px 14px;
+  margin-top: 18px;
+}
+
+.background-option {
+  display: grid;
+  min-width: 0;
+  gap: 9px;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  cursor: pointer;
+}
+
+.background-option strong {
+  padding: 0 3px;
+  overflow: hidden;
+  font-size: 0.86rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.background-thumbnail {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 9 / 19.5;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 22px;
+  background: linear-gradient(145deg, #edf4ed, #dce9e6);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.78),
+    0 12px 24px rgba(39, 61, 44, 0.12);
+  transition:
+    border-color 200ms ease,
+    box-shadow 200ms ease,
+    transform 150ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.background-thumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 300ms ease;
+}
+
+.background-thumbnail.loaded img {
+  opacity: 1;
+}
+
+.background-option.selected .background-thumbnail {
+  border-color: rgba(123, 207, 118, 0.92);
+  box-shadow:
+    inset 0 0 0 1px rgba(214, 255, 208, 0.5),
+    0 10px 25px rgba(76, 155, 73, 0.18),
+    0 0 16px rgba(123, 207, 118, 0.14);
+}
+
+.background-option:active .background-thumbnail {
+  transform: scale(0.97);
+}
+
+.background-check {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  display: grid;
+  width: 25px;
+  height: 25px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  border-radius: 50%;
+  color: white;
+  background: #78c974;
+  box-shadow: 0 4px 12px rgba(52, 112, 51, 0.28);
+  font-size: 0.75rem;
+  font-weight: 900;
+}
+
 .history-stats {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -897,6 +1062,15 @@ h2 {
     gap: 8px;
   }
 
+  .background-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px 12px;
+  }
+
+  .background-thumbnail {
+    border-radius: 19px;
+  }
+
   .history-stat-card {
     grid-template-columns: 1fr auto;
     align-items: center;
@@ -1028,6 +1202,11 @@ h2 {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .app-background-current,
+  .app-background-previous {
+    animation-duration: 120ms;
+    animation-timing-function: ease;
+  }
   .completion-celebration {
     animation: completion-fade 700ms ease both;
   }
@@ -1059,12 +1238,16 @@ h2 {
   }
 
   .section-actions .text-button,
-  .add-button {
+  .tool-button,
+  .background-thumbnail,
+  .background-thumbnail img {
     transition: none;
   }
 
   .section-actions .text-button:active,
-  .add-button:active {
+  .tool-button:hover,
+  .tool-button:active,
+  .background-option:active .background-thumbnail {
     transform: none;
   }
 }

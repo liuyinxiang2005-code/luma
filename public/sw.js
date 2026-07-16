@@ -1,4 +1,4 @@
-const CACHE_NAME = 'luma-shell-v3'
+const CACHE_NAME = 'luma-shell-v4'
 const APP_SHELL = [
   '/',
   '/index.html',
@@ -8,6 +8,10 @@ const APP_SHELL = [
   '/icon-512-v2.png',
   '/icon-maskable-512-v2.png',
   '/apple-touch-icon-v2.png',
+  '/backgrounds/nature.jpeg',
+  '/backgrounds/statues.jpeg',
+  '/backgrounds/stream-glass.jpeg',
+  '/backgrounds/spheres.jpeg',
 ]
 
 self.addEventListener('install', (event) => {

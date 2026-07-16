@@ -3,6 +3,19 @@ import './App.css'
 
 const HABITS_STORAGE_KEY = 'luma-habits-v2'
 const RECORDS_STORAGE_KEY = 'luma-daily-records-v1'
+const BACKGROUND_STORAGE_KEY = 'luma-selected-background'
+
+const backgroundOptions = [
+  { id: 'original', name: 'Original', type: 'gradient' },
+  { id: 'nature', name: 'Nature', image: '/backgrounds/nature.jpeg' },
+  { id: 'statues', name: 'Statues', image: '/backgrounds/statues.jpeg' },
+  {
+    id: 'stream-glass',
+    name: 'Glass Stream',
+    image: '/backgrounds/stream-glass.jpeg',
+  },
+  { id: 'spheres', name: 'Spheres', image: '/backgrounds/spheres.jpeg' },
+]
 
 const initialHabits = [
   {
@@ -102,6 +115,17 @@ function loadRecords() {
   }
 }
 
+function loadSelectedBackground() {
+  try {
+    const savedId = localStorage.getItem(BACKGROUND_STORAGE_KEY)
+    return backgroundOptions.some((option) => option.id === savedId)
+      ? savedId
+      : 'original'
+  } catch {
+    return 'original'
+  }
+}
+
 function createTodayHabits(habitDefinitions, records, dateKey) {
   const savedToday = records[dateKey]
 
@@ -136,6 +160,17 @@ function App() {
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [isManageOpen, setIsManageOpen] = useState(false)
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
+  const [isAppearanceOpen, setIsAppearanceOpen] = useState(false)
+  const [selectedBackground, setSelectedBackground] = useState(
+    loadSelectedBackground,
+  )
+  const [backgroundLayers, setBackgroundLayers] = useState({
+    current: 'original',
+    previous: null,
+  })
+  const [loadedBackgrounds, setLoadedBackgrounds] = useState(() =>
+    new Set(['original']),
+  )
   const [selectedHistoryDate, setSelectedHistoryDate] = useState(todayKey)
   const [editingHabitId, setEditingHabitId] = useState(null)
   const [newHabitName, setNewHabitName] = useState('')
@@ -148,6 +183,8 @@ function App() {
   const [closingModal, setClosingModal] = useState(null)
   const celebrationTimeoutRef = useRef(null)
   const modalCloseTimeoutRef = useRef(null)
+  const backgroundRequestRef = useRef(0)
+  const initialBackgroundRef = useRef(selectedBackground)
 
   const habits = useMemo(
     () =>
@@ -172,6 +209,41 @@ function App() {
       JSON.stringify(records),
     )
   }, [records])
+
+  useEffect(() => {
+    const initialBackground = initialBackgroundRef.current
+
+    if (initialBackground === 'original') {
+      return undefined
+    }
+
+    const option = backgroundOptions.find(
+      (background) => background.id === initialBackground,
+    )
+    const image = new Image()
+
+    image.onload = () => {
+      Promise.resolve(image.decode?.()).catch(() => {}).finally(() => {
+        setLoadedBackgrounds((current) =>
+          new Set(current).add(initialBackground),
+        )
+        setBackgroundLayers((current) => ({
+          current: initialBackground,
+          previous: current.current,
+        }))
+      })
+    }
+    image.onerror = () => {
+      setSelectedBackground('original')
+      localStorage.setItem(BACKGROUND_STORAGE_KEY, 'original')
+    }
+    image.src = option.image
+
+    return () => {
+      image.onload = null
+      image.onerror = null
+    }
+  }, [])
 
   useEffect(() => {
     return () => {
@@ -374,6 +446,8 @@ function App() {
           setIsHistoryOpen(false)
         } else if (modalType === 'edit') {
           setEditingHabitId(null)
+        } else if (modalType === 'appearance') {
+          setIsAppearanceOpen(false)
         }
 
         modalCloseTimeoutRef.current = null
@@ -385,6 +459,69 @@ function App() {
 
   function closeAddHabit() {
     requestModalClose('add')
+  }
+
+  function preloadBackgrounds() {
+    backgroundOptions.forEach((option) => {
+      if (!option.image || loadedBackgrounds.has(option.id)) {
+        return
+      }
+
+      const image = new Image()
+      image.onload = () => {
+        Promise.resolve(image.decode?.()).catch(() => {}).finally(() => {
+          setLoadedBackgrounds((current) => new Set(current).add(option.id))
+        })
+      }
+      image.src = option.image
+    })
+  }
+
+  function openAppearance() {
+    setIsAppearanceOpen(true)
+    preloadBackgrounds()
+  }
+
+  function applyBackground(option) {
+    const requestId = backgroundRequestRef.current + 1
+    backgroundRequestRef.current = requestId
+
+    const commitBackground = () => {
+      if (backgroundRequestRef.current !== requestId) return
+
+      setSelectedBackground(option.id)
+      localStorage.setItem(BACKGROUND_STORAGE_KEY, option.id)
+      setLoadedBackgrounds((current) => new Set(current).add(option.id))
+      setBackgroundLayers((current) =>
+        current.current === option.id
+          ? current
+          : { current: option.id, previous: current.current },
+      )
+    }
+
+    if (!option.image || loadedBackgrounds.has(option.id)) {
+      commitBackground()
+      return
+    }
+
+    const image = new Image()
+    image.onload = () =>
+      Promise.resolve(image.decode?.()).catch(() => {}).finally(commitBackground)
+    image.onerror = () => {
+      if (backgroundRequestRef.current !== requestId) return
+      applyBackground(backgroundOptions[0])
+    }
+    image.src = option.image
+  }
+
+  function getBackgroundStyle(backgroundId) {
+    const option = backgroundOptions.find(
+      (background) => background.id === backgroundId,
+    )
+
+    return option?.image
+      ? { backgroundImage: `url(${option.image})` }
+      : undefined
   }
 
   function openEditHabit(habit) {
@@ -479,6 +616,26 @@ function App() {
 
   return (
     <main className="app-shell">
+      {backgroundLayers.previous && (
+        <div
+          className={`app-background ${
+            backgroundLayers.previous === 'original' ? 'original' : 'image'
+          } app-background-previous`}
+          style={getBackgroundStyle(backgroundLayers.previous)}
+          aria-hidden="true"
+        />
+      )}
+      <div
+        key={backgroundLayers.current}
+        className={`app-background ${
+          backgroundLayers.current === 'original' ? 'original' : 'image'
+        } app-background-current`}
+        style={getBackgroundStyle(backgroundLayers.current)}
+        onAnimationEnd={() =>
+          setBackgroundLayers((current) => ({ ...current, previous: null }))
+        }
+        aria-hidden="true"
+      />
       <div className="ambient ambient-one" />
       <div className="ambient ambient-two" />
 
@@ -510,13 +667,49 @@ function App() {
             <h1>Luma</h1>
           </div>
 
-          <button
-            className="profile-button"
-            type="button"
-            aria-label="Open profile"
-          >
-            S
-          </button>
+          <div className="tool-buttons">
+            <button
+              className="tool-button"
+              type="button"
+              aria-label="Add habit"
+              onClick={openAddHabit}
+            >
+              <svg
+                className="tool-icon"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.65"
+                strokeLinecap="round"
+                aria-hidden="true"
+              >
+                <path d="M12 5.5v13M5.5 12h13" />
+              </svg>
+            </button>
+
+            <button
+              className="tool-button"
+              type="button"
+              aria-label="Customize background"
+              onClick={openAppearance}
+            >
+              <svg
+                className="tool-icon"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.65"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M5.5 16.5H5A2.5 2.5 0 0 1 2.5 14V5A2.5 2.5 0 0 1 5 2.5h9A2.5 2.5 0 0 1 16.5 5v.5" />
+                <rect x="6.5" y="6.5" width="15" height="15" rx="2.8" />
+                <circle cx="17.2" cy="10.8" r="1.35" />
+                <path d="m8.8 18.1 3.55-3.75 2.35 2.25 1.55-1.5 3.05 3" />
+              </svg>
+            </button>
+          </div>
         </header>
 
         <section className="progress-card">
@@ -610,15 +803,78 @@ function App() {
           </div>
         </section>
 
-        <button
-          className="add-button"
-          type="button"
-          aria-label="Add a new habit"
-          onClick={openAddHabit}
-        >
-          <span>+</span>
-        </button>
       </section>
+
+      {isAppearanceOpen && (
+        <div
+          className={`modal-backdrop ${
+            closingModal === 'appearance' ? 'modal-closing' : ''
+          }`}
+          role="presentation"
+          onMouseDown={() => requestModalClose('appearance')}
+        >
+          <section
+            className={`add-modal appearance-modal ${
+              closingModal === 'appearance' ? 'modal-closing' : ''
+            }`}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="appearance-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="modal-header">
+              <div>
+                <p className="section-label">Personalize</p>
+                <h2 id="appearance-title">Appearance</h2>
+              </div>
+              <button
+                className="close-button"
+                type="button"
+                aria-label="Close"
+                onClick={() => requestModalClose('appearance')}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="background-picker-heading">
+              <p className="section-label">Background</p>
+              <h3>Choose your atmosphere</h3>
+            </div>
+            <div className="background-options">
+              {backgroundOptions.map((option) => (
+                <button
+                  key={option.id}
+                  className={`background-option ${
+                    selectedBackground === option.id ? 'selected' : ''
+                  }`}
+                  type="button"
+                  aria-pressed={selectedBackground === option.id}
+                  onClick={() => applyBackground(option)}
+                >
+                  <span
+                    className={`background-thumbnail ${
+                      option.type === 'gradient' ? 'original' : ''
+                    } ${loadedBackgrounds.has(option.id) ? 'loaded' : ''}`}
+                  >
+                    {option.image && (
+                      <img src={option.image} alt="" onLoad={() =>
+                        setLoadedBackgrounds((current) =>
+                          new Set(current).add(option.id),
+                        )
+                      } />
+                    )}
+                    {selectedBackground === option.id && (
+                      <span className="background-check" aria-hidden="true">✓</span>
+                    )}
+                  </span>
+                  <strong>{option.name}</strong>
+                </button>
+              ))}
+            </div>
+          </section>
+        </div>
+      )}
 
       {isAddOpen && (
         <div
