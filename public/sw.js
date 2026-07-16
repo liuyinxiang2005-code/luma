@@ -1,13 +1,13 @@
-const CACHE_NAME = 'luma-shell-v2'
+const CACHE_NAME = 'luma-shell-v3'
 const APP_SHELL = [
   '/',
   '/index.html',
   '/manifest.webmanifest',
   '/luma-icon.svg',
-  '/icon-192.png',
-  '/icon-512.png',
-  '/icon-maskable-512.png',
-  '/apple-touch-icon.png',
+  '/icon-192-v2.png',
+  '/icon-512-v2.png',
+  '/icon-maskable-512-v2.png',
+  '/apple-touch-icon-v2.png',
 ]
 
 self.addEventListener('install', (event) => {
