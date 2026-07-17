@@ -4,6 +4,10 @@ import './App.css'
 const HABITS_STORAGE_KEY = 'luma-habits-v2'
 const RECORDS_STORAGE_KEY = 'luma-daily-records-v1'
 const BACKGROUND_STORAGE_KEY = 'luma-selected-background'
+const GLASS_STORAGE_KEY = 'luma-glass-level'
+const DEFAULT_GLASS_LEVEL = 30
+const GLASS_STORAGE_DEBOUNCE_MS = 160
+const backgroundImageRequests = new Map()
 
 const backgroundOptions = [
   { id: 'original', name: 'Original', type: 'gradient' },
@@ -126,6 +130,54 @@ function loadSelectedBackground() {
   }
 }
 
+function loadGlassLevel() {
+  try {
+    const savedValue = localStorage.getItem(GLASS_STORAGE_KEY)
+    if (savedValue === null) return DEFAULT_GLASS_LEVEL
+
+    const savedLevel = Number(savedValue)
+    return Number.isFinite(savedLevel) && savedLevel >= 0 && savedLevel <= 100
+      ? savedLevel
+      : DEFAULT_GLASS_LEVEL
+  } catch {
+    return DEFAULT_GLASS_LEVEL
+  }
+}
+
+const lerp = (start, end, amount) => start + (end - start) * amount
+
+function getGlassVariables(level) {
+  const amount = level / 100
+  const fillStrong = lerp(0.045, 0.42, amount)
+  const fillLight = lerp(0.012, 0.2, amount)
+
+  return {
+    '--glass-fill-strong': fillStrong,
+    '--glass-fill-light': fillLight,
+    '--glass-fill-refracted': fillStrong * 0.72,
+    '--glass-fill-mid': fillLight * 0.52,
+    '--glass-fill-blue': fillLight * 0.38,
+    '--glass-fill-green': fillLight * 0.46,
+    '--glass-blur': `${lerp(1, 24, amount)}px`,
+    '--glass-saturation': `${lerp(106, 138, amount)}%`,
+    '--glass-border-alpha': lerp(0.22, 0.58, amount),
+    '--glass-highlight-alpha': lerp(0.26, 0.72, amount),
+    '--glass-shadow-alpha': lerp(0.035, 0.13, amount),
+    '--glass-refraction-opacity': lerp(0.42, 0.88, amount),
+    '--glass-inner-edge-alpha': lerp(0.34, 0.72, amount),
+    '--glass-brightness': lerp(1.015, 1.055, amount),
+    '--glass-contrast': lerp(1.015, 1.035, amount),
+  }
+}
+
+function getGlassDescription(level) {
+  if (level <= 20) return 'Very clear'
+  if (level <= 40) return 'Clear'
+  if (level <= 60) return 'Balanced'
+  if (level <= 80) return 'Frosted'
+  return 'Strong frosted'
+}
+
 function createTodayHabits(habitDefinitions, records, dateKey) {
   const savedToday = records[dateKey]
 
@@ -149,6 +201,28 @@ function createHabitId() {
   return `habit-${Date.now()}`
 }
 
+function loadBackgroundImage(option) {
+  if (!option?.image) return Promise.resolve()
+
+  if (!backgroundImageRequests.has(option.id)) {
+    const request = new Promise((resolve, reject) => {
+      const image = new Image()
+      image.onload = () => {
+        Promise.resolve(image.decode?.()).catch(() => {}).finally(resolve)
+      }
+      image.onerror = reject
+      image.src = option.image
+    }).catch((error) => {
+      backgroundImageRequests.delete(option.id)
+      throw error
+    })
+
+    backgroundImageRequests.set(option.id, request)
+  }
+
+  return backgroundImageRequests.get(option.id)
+}
+
 function App() {
   const today = new Date()
   const todayKey = getDateKey(today)
@@ -161,6 +235,8 @@ function App() {
   const [isManageOpen, setIsManageOpen] = useState(false)
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
   const [isAppearanceOpen, setIsAppearanceOpen] = useState(false)
+  const [isGlassOpen, setIsGlassOpen] = useState(false)
+  const [glassLevel, setGlassLevel] = useState(loadGlassLevel)
   const [selectedBackground, setSelectedBackground] = useState(
     loadSelectedBackground,
   )
@@ -174,7 +250,7 @@ function App() {
   const [selectedHistoryDate, setSelectedHistoryDate] = useState(todayKey)
   const [editingHabitId, setEditingHabitId] = useState(null)
   const [newHabitName, setNewHabitName] = useState('')
-  const [newHabitIcon, setNewHabitIcon] = useState('✨')
+  const [newHabitIcon, setNewHabitIcon] = useState('')
   const [editHabitName, setEditHabitName] = useState('')
   const [editHabitIcon, setEditHabitIcon] = useState('')
   const [showCompletionCelebration, setShowCompletionCelebration] =
@@ -185,6 +261,10 @@ function App() {
   const modalCloseTimeoutRef = useRef(null)
   const backgroundRequestRef = useRef(0)
   const initialBackgroundRef = useRef(selectedBackground)
+  const glassLevelRef = useRef(glassLevel)
+  const glassStorageTimeoutRef = useRef(null)
+  const glassFrameRef = useRef(null)
+  const pendingGlassLevelRef = useRef(glassLevel)
 
   const habits = useMemo(
     () =>
@@ -211,6 +291,43 @@ function App() {
   }, [records])
 
   useEffect(() => {
+    glassLevelRef.current = glassLevel
+    clearTimeout(glassStorageTimeoutRef.current)
+    glassStorageTimeoutRef.current = setTimeout(() => {
+      localStorage.setItem(GLASS_STORAGE_KEY, String(glassLevelRef.current))
+      glassStorageTimeoutRef.current = null
+    }, GLASS_STORAGE_DEBOUNCE_MS)
+
+    return () => clearTimeout(glassStorageTimeoutRef.current)
+  }, [glassLevel])
+
+  useEffect(() => {
+    const persistGlassLevel = () => {
+      if (document.visibilityState === 'visible') return
+      localStorage.setItem(GLASS_STORAGE_KEY, String(glassLevelRef.current))
+    }
+
+    window.addEventListener('pagehide', persistGlassLevel)
+    document.addEventListener('visibilitychange', persistGlassLevel)
+
+    return () => {
+      window.removeEventListener('pagehide', persistGlassLevel)
+      document.removeEventListener('visibilitychange', persistGlassLevel)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isGlassOpen || closingModal === 'glass') return undefined
+
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') requestModalClose('glass')
+    }
+
+    window.addEventListener('keydown', closeOnEscape)
+    return () => window.removeEventListener('keydown', closeOnEscape)
+  }, [isGlassOpen, closingModal])
+
+  useEffect(() => {
     const initialBackground = initialBackgroundRef.current
 
     if (initialBackground === 'original') {
@@ -220,10 +337,11 @@ function App() {
     const option = backgroundOptions.find(
       (background) => background.id === initialBackground,
     )
-    const image = new Image()
+    let isActive = true
 
-    image.onload = () => {
-      Promise.resolve(image.decode?.()).catch(() => {}).finally(() => {
+    loadBackgroundImage(option)
+      .then(() => {
+        if (!isActive) return
         setLoadedBackgrounds((current) =>
           new Set(current).add(initialBackground),
         )
@@ -232,16 +350,14 @@ function App() {
           previous: current.current,
         }))
       })
-    }
-    image.onerror = () => {
-      setSelectedBackground('original')
-      localStorage.setItem(BACKGROUND_STORAGE_KEY, 'original')
-    }
-    image.src = option.image
+      .catch(() => {
+        if (!isActive) return
+        setSelectedBackground('original')
+        localStorage.setItem(BACKGROUND_STORAGE_KEY, 'original')
+      })
 
     return () => {
-      image.onload = null
-      image.onerror = null
+      isActive = false
     }
   }, [])
 
@@ -249,6 +365,9 @@ function App() {
     return () => {
       clearTimeout(celebrationTimeoutRef.current)
       clearTimeout(modalCloseTimeoutRef.current)
+      clearTimeout(glassStorageTimeoutRef.current)
+      cancelAnimationFrame(glassFrameRef.current)
+      localStorage.setItem(GLASS_STORAGE_KEY, String(glassLevelRef.current))
     }
   }, [])
 
@@ -421,7 +540,7 @@ function App() {
 
   function openAddHabit() {
     setNewHabitName('')
-    setNewHabitIcon('✨')
+    setNewHabitIcon('')
     setIsAddOpen(true)
   }
 
@@ -448,6 +567,8 @@ function App() {
           setEditingHabitId(null)
         } else if (modalType === 'appearance') {
           setIsAppearanceOpen(false)
+        } else if (modalType === 'glass') {
+          setIsGlassOpen(false)
         }
 
         modalCloseTimeoutRef.current = null
@@ -467,13 +588,11 @@ function App() {
         return
       }
 
-      const image = new Image()
-      image.onload = () => {
-        Promise.resolve(image.decode?.()).catch(() => {}).finally(() => {
+      loadBackgroundImage(option)
+        .then(() => {
           setLoadedBackgrounds((current) => new Set(current).add(option.id))
         })
-      }
-      image.src = option.image
+        .catch(() => {})
     })
   }
 
@@ -504,14 +623,22 @@ function App() {
       return
     }
 
-    const image = new Image()
-    image.onload = () =>
-      Promise.resolve(image.decode?.()).catch(() => {}).finally(commitBackground)
-    image.onerror = () => {
-      if (backgroundRequestRef.current !== requestId) return
-      applyBackground(backgroundOptions[0])
-    }
-    image.src = option.image
+    loadBackgroundImage(option)
+      .then(commitBackground)
+      .catch(() => {
+        if (backgroundRequestRef.current !== requestId) return
+        applyBackground(backgroundOptions[0])
+      })
+  }
+
+  function updateGlassLevel(event) {
+    pendingGlassLevelRef.current = Number(event.target.value)
+    if (glassFrameRef.current !== null) return
+
+    glassFrameRef.current = requestAnimationFrame(() => {
+      setGlassLevel(pendingGlassLevelRef.current)
+      glassFrameRef.current = null
+    })
   }
 
   function getBackgroundStyle(backgroundId) {
@@ -610,7 +737,7 @@ function App() {
     ])
 
     setNewHabitName('')
-    setNewHabitIcon('✨')
+    setNewHabitIcon('')
     setIsAddOpen(false)
   }
 
@@ -659,6 +786,7 @@ function App() {
 
       <section
         className="dashboard"
+        style={getGlassVariables(glassLevel)}
         aria-label="Luma habit dashboard"
       >
         <header className="topbar">
@@ -684,6 +812,29 @@ function App() {
                 aria-hidden="true"
               >
                 <path d="M12 5.5v13M5.5 12h13" />
+              </svg>
+            </button>
+
+            <button
+              className="tool-button"
+              type="button"
+              aria-label="Adjust glass transparency"
+              onClick={() => setIsGlassOpen(true)}
+            >
+              <svg
+                className="tool-icon"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.65"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M4 6h5m4 0h7M4 12h9m4 0h3M4 18h2m4 0h10" />
+                <circle cx="11" cy="6" r="2" />
+                <circle cx="15" cy="12" r="2" />
+                <circle cx="8" cy="18" r="2" />
               </svg>
             </button>
 
@@ -805,6 +956,82 @@ function App() {
 
       </section>
 
+      {isGlassOpen && (
+        <div
+          className={`modal-backdrop ${
+            closingModal === 'glass' ? 'modal-closing' : ''
+          }`}
+          role="presentation"
+          onMouseDown={() => requestModalClose('glass')}
+        >
+          <section
+            className={`add-modal glass-modal ${
+              closingModal === 'glass' ? 'modal-closing' : ''
+            }`}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="glass-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="modal-header">
+              <div>
+                <p className="section-label">Liquid glass</p>
+                <h2 id="glass-title">Glass appearance</h2>
+              </div>
+              <button
+                className="close-button"
+                type="button"
+                aria-label="Close"
+                onClick={() => requestModalClose('glass')}
+              >
+                ×
+              </button>
+            </div>
+
+            <div
+              className={`glass-preview ${
+                selectedBackground === 'original' ? 'original' : ''
+              }`}
+              style={{
+                ...getBackgroundStyle(selectedBackground),
+                ...getGlassVariables(glassLevel),
+              }}
+              aria-label="Live glass preview"
+            >
+              <div className="glass-preview-bar" aria-hidden="true">
+                <span className="preview-circle" />
+                <svg viewBox="0 0 24 24"><path d="M3.5 7.5h6l2-2h9v13h-17z" /></svg>
+                <svg viewBox="0 0 24 24"><path d="m9 5 7 7-7 7M4 12h12" /></svg>
+              </div>
+            </div>
+
+            <div className="glass-control-card">
+              <div className="glass-control-heading">
+                <strong>Transparency</strong>
+                <span>{glassLevel}%</span>
+              </div>
+              <div className="glass-range-labels"><span>Clear</span><span>Frosted</span></div>
+              <input
+                className="glass-range"
+                type="range"
+                min="0"
+                max="100"
+                step="1"
+                value={glassLevel}
+                aria-label="Glass transparency"
+                onChange={updateGlassLevel}
+              />
+              <div className="glass-control-footer">
+                <span>{getGlassDescription(glassLevel)}</span>
+                <button type="button" onClick={() => setGlassLevel(DEFAULT_GLASS_LEVEL)}>
+                  Reset to default
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
+
       {isAppearanceOpen && (
         <div
           className={`modal-backdrop ${
@@ -922,7 +1149,6 @@ function App() {
                   onChange={(event) =>
                     setNewHabitName(event.target.value)
                   }
-                  placeholder="For example: Practice French"
                   maxLength={50}
                   autoFocus
                 />
@@ -938,7 +1164,6 @@ function App() {
                   onChange={(event) =>
                     setNewHabitIcon(event.target.value)
                   }
-                  placeholder="✨"
                   maxLength={4}
                 />
               </label>

@@ -1,18 +1,27 @@
-const CACHE_NAME = 'luma-shell-v4'
+const CACHE_NAME = 'luma-shell-v6'
+const RUNTIME_CACHE_NAME = 'luma-runtime-v1'
+const MAX_RUNTIME_ENTRIES = 40
 const APP_SHELL = [
   '/',
   '/index.html',
   '/manifest.webmanifest',
   '/luma-icon.svg',
-  '/icon-192-v2.png',
-  '/icon-512-v2.png',
-  '/icon-maskable-512-v2.png',
-  '/apple-touch-icon-v2.png',
-  '/backgrounds/nature.jpeg',
-  '/backgrounds/statues.jpeg',
-  '/backgrounds/stream-glass.jpeg',
-  '/backgrounds/spheres.jpeg',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/icon-maskable-512.png',
+  '/apple-touch-icon.png',
 ]
+
+async function cacheResponse(request, response) {
+  const cache = await caches.open(RUNTIME_CACHE_NAME)
+  await cache.put(request, response)
+
+  const keys = await cache.keys()
+  const overflow = keys.length - MAX_RUNTIME_ENTRIES
+  if (overflow > 0) {
+    await Promise.all(keys.slice(0, overflow).map((key) => cache.delete(key)))
+  }
+}
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -28,7 +37,12 @@ self.addEventListener('activate', (event) => {
       .then((keys) =>
         Promise.all(
           keys
-            .filter((key) => key.startsWith('luma-') && key !== CACHE_NAME)
+            .filter(
+              (key) =>
+                key.startsWith('luma-') &&
+                key !== CACHE_NAME &&
+                key !== RUNTIME_CACHE_NAME,
+            )
             .map((key) => caches.delete(key)),
         ),
       )
@@ -77,7 +91,7 @@ self.addEventListener('fetch', (event) => {
         .then((response) => {
           if (response.ok) {
             const copy = response.clone()
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy))
+            cacheResponse(request, copy)
           }
           return response
         })
